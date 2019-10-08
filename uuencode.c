@@ -31,29 +31,30 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-static const unsigned char b64s[] =
+static const int linelength = 60;
+static unsigned char conversion[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static inline int encodechunk(const unsigned char *in, unsigned char *out, int n, int b64)
 {
-	out[0] = (in[0] >> 2) & 0x3f;
-	out[1] = ((in[0] << 4) | ((in[1] >> 4) & 0xf)) & 0x3f;
-	out[2] = ((in[1] << 2) | ((in[2] >> 6) & 0x3)) & 0x3f;
-	out[3] = (in[2]) & 0x3f;
+	out[0] = conversion[(in[0] >> 2) & 0x3f];
+	out[1] = conversion[((in[0] << 4) | ((in[1] >> 4) & 0xf)) & 0x3f];
+	out[2] = conversion[((in[1] << 2) | ((in[2] >> 6) & 0x3)) & 0x3f];
+	out[3] = conversion[(in[2]) & 0x3f];
 
-	for (int i = 0; i < 4; i++) {
-		out[i] = b64 ? b64s[out[i]] : out[i] + 0x20;
+	if (!b64) {
+		return 4 - (3 - n);
 	}
 
 	if (n < 2) {
-		out[2] = b64 ? '=' : ((in[0] << 4) & 0x3f) + 0x20;
+		out[2] = '=';
 	}
 
 	if (n < 3) {
-		out[3] = b64 ? '=' : ((in[1] << 2) & 0x3f) + 0x20;
+		out[3] = '=';
 	}
 
-	return b64 ? 4 : 4 - (3-n);
+	return 4;
 }
 
 static int encode(FILE * in, const char *path, mode_t mode, int b64)
@@ -61,8 +62,6 @@ static int encode(FILE * in, const char *path, mode_t mode, int b64)
 	printf("begin%s %03o %s\n", b64 ? "-base64" : "", mode, path);
 
 	int lpos = 0;
-	int linelength = b64 ? 75 : 43;
-
 	int nread = 0;
 	unsigned char ibuf[3] = {0};
 	unsigned char obuf[76] = {0};
@@ -77,7 +76,7 @@ static int encode(FILE * in, const char *path, mode_t mode, int b64)
 
 		if (lpos > linelength || nread < 3) {
 			if (!b64) {
-				fputc(0x20 + lpos, stdout);
+				fputc(conversion[lpos * 3 / 4], stdout);
 			}
 
 			fwrite(obuf, 1, lpos, stdout);
@@ -127,6 +126,12 @@ int main(int argc, char *argv[])
 		struct stat st;
 		if (fstat(fileno(input), &st) == 0) {
 			mode = st.st_mode & 0777;
+		}
+	}
+
+	if (!mime_base64) {
+		for (size_t i = 0; i < sizeof(conversion); i++) {
+			conversion[i] = i + 0x20;
 		}
 	}
 
