@@ -31,10 +31,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-static const char *b64s =
+static const unsigned char b64s[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static inline int encodechunk(char *in, char *out, int n, int b64)
+static inline int encodechunk(const unsigned char *in, unsigned char *out, int n, int b64)
 {
 	out[0] = (in[0] >> 2) & 0x3f;
 	out[1] = ((in[0] << 4) | ((in[1] >> 4) & 0xf)) & 0x3f;
@@ -42,7 +42,7 @@ static inline int encodechunk(char *in, char *out, int n, int b64)
 	out[3] = (in[2]) & 0x3f;
 
 	for (int i = 0; i < 4; i++) {
-		out[i] = b64 ? b64s[(int)(out[i])] : out[i] + 0x20;
+		out[i] = b64 ? b64s[out[i]] : out[i] + 0x20;
 	}
 
 	if (n < 2) {
@@ -64,8 +64,8 @@ static int encode(FILE * in, const char *path, mode_t mode, int b64)
 	int linelength = b64 ? 75 : 43;
 
 	int nread = 0;
-	char ibuf[3] = {0};
-	char obuf[76] = {0};
+	unsigned char ibuf[3] = {0};
+	unsigned char obuf[76] = {0};
 
 	while ((nread = fread(ibuf, 1, sizeof(ibuf), in)) != 0) {
 		if (nread < 0) {
